@@ -1,0 +1,13 @@
+ZigZagUnity/Library/
+ZigZagUnity/Temp/
+ZigZagUnity/Logs/
+ZigZagUnity/UserSettings/
+ZigZagUnity/Assembly-CSharp.csproj
+ZigZagUnity/Assembly-CSharp-Editor.csproj
+ZigZagUnity/ZigZagUnity.sln
+ZigZagUnity/.vsconfig
+ZigZagUnity/.vs/ZigZagUnity/v16/.suo
+ZigZagUnity/obj/
+Build/
+PackagesDistributives/
+ZigZagUnity/Assembly-CSharp-firstpass.csproj

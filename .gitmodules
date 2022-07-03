@@ -1,0 +1,3 @@
+[submodule "ZigZagUnity/Assets/Libs/GameLib"]
+	path = ZigZagUnity/Assets/Libs/GameLib
+	url = ../gamelib.git
