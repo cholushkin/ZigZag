@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class GeneratorController : MonoBehaviour
@@ -11,6 +12,7 @@ public class GeneratorController : MonoBehaviour
 
     public class Chunk
     {
+        public int GenerationID;
         public List<Rect> Rects;
         // monsters
         // decoration
@@ -25,32 +27,62 @@ public class GeneratorController : MonoBehaviour
 
     void Awake()
     {
-        GenerateAround(StreamingPointer);
+        GenerateAround(StreamingPointer, 4);
     }
 
     void Update()
     {
         var gridCoord = StreamingPointer.GetGridCoordinate();
-        print(gridCoord);
 
         if (gridCoord != _prevPos)
         {
             _prevPos = gridCoord;
-            GenerateAround(StreamingPointer);
+            GenerateAround(StreamingPointer, 4);
         }
     }
 
-    private void GenerateAround(IStreamingPointer pointer)
+    readonly Vector2Int[] _directions = { new(1, 0), new(0, -1), new(-1, 0), new(0, 1) };
+    private void GenerateAround(IStreamingPointer pointer, int radius)
     {
         var gridCoordinate = pointer.GetGridCoordinate();
-        if (_activeChunks.ContainsKey(gridCoordinate))
-            return;
 
         Debug.Log($"Generate for grid coordinate: {gridCoordinate}");
 
-        var chunk = new Chunk();
-        chunk.Rects = ZoneGenerator.Generate(ChunkSize.x, ChunkSize.y, new Vector3(gridCoordinate.x * pointer.GetGridCellSize().x, gridCoordinate.y * pointer.GetGridCellSize().y, 0));
-        _activeChunks.Add(gridCoordinate, chunk);
+        if(!_activeChunks.ContainsKey(gridCoordinate))
+            _activeChunks.Add(gridCoordinate, GenerateChunk(gridCoordinate * pointer.GetGridCellSize()));
+        _activeChunks[gridCoordinate].GenerationID = Time.frameCount;
+
+        Vector2Int curPointer = Vector2Int.zero;
+        for (int r = 1; r <= radius; ++r)
+        {
+            curPointer.Set(-r,r);
+            for (int dirIndex = 0; dirIndex < 4; ++dirIndex)
+            {
+                var dir = _directions[dirIndex];
+                for (int step = 0; step < r*2; ++step)
+                {
+                    var pos = gridCoordinate + curPointer;
+                    if (!_activeChunks.ContainsKey(pos))
+                        _activeChunks.Add(pos, GenerateChunk(pos * pointer.GetGridCellSize()));
+                    _activeChunks[pos].GenerationID = Time.frameCount;
+                    curPointer += dir;
+                }
+            }
+        }
+
+        // clean around
+        var toRemove = _activeChunks.Where(kv => kv.Value.GenerationID != Time.frameCount).ToArray();
+        foreach (var keyValuePair in toRemove)
+            _activeChunks.Remove(keyValuePair.Key);
+    }
+
+    private Chunk GenerateChunk(Vector2Int cellCoord)
+    {
+        var chunk = new Chunk
+        {
+            Rects = ZoneGenerator.Generate(ChunkSize.x, ChunkSize.y, new Vector3(cellCoord.x, cellCoord.y, 0))
+        };
+        return chunk;
     }
 
     private void OnDrawGizmos()
