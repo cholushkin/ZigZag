@@ -7,20 +7,25 @@ public class GeneratorController : MonoBehaviour
     public interface IStreamingPointer
     {
         Vector2Int GetGridCoordinate();
-        Vector2Int GetGridCellSize();
+        Vector2 GetGridCellSize();
     }
 
     public class Chunk
     {
         public int GenerationID;
+        public List<GameObject> Lands;
         public List<Rect> Rects;
-        // monsters
-        // decoration
+
+        public List<GameObject> Decorations;
+        public GameObject ChunkParent;
     }
 
-    public Vector2Int ChunkSize;
+    public Vector2 ChunkSize;
     public BaseStreamingPointer StreamingPointer; // pointer which tells where to generate current zone
     public ZoneGenerator ZoneGenerator;
+    public ZoneGenerator ZoneGeneratorLayer2;
+    public DecorationGenerator DecorationGenerator;
+    public LandGenerator LandGenerator;
 
     private Vector2Int _prevPos; // prev position of pointer to determine when streaming pointer changes
     private Dictionary<Vector2Int, Chunk> _activeChunks = new(32);
@@ -48,18 +53,18 @@ public class GeneratorController : MonoBehaviour
 
         Debug.Log($"Generate for grid coordinate: {gridCoordinate}");
 
-        if(!_activeChunks.ContainsKey(gridCoordinate))
+        if (!_activeChunks.ContainsKey(gridCoordinate))
             _activeChunks.Add(gridCoordinate, GenerateChunk(gridCoordinate * pointer.GetGridCellSize()));
         _activeChunks[gridCoordinate].GenerationID = Time.frameCount;
 
         Vector2Int curPointer = Vector2Int.zero;
         for (int r = 1; r <= radius; ++r)
         {
-            curPointer.Set(-r,r);
+            curPointer.Set(-r, r);
             for (int dirIndex = 0; dirIndex < 4; ++dirIndex)
             {
                 var dir = _directions[dirIndex];
-                for (int step = 0; step < r*2; ++step)
+                for (int step = 0; step < r * 2; ++step)
                 {
                     var pos = gridCoordinate + curPointer;
                     if (!_activeChunks.ContainsKey(pos))
@@ -73,16 +78,42 @@ public class GeneratorController : MonoBehaviour
         // clean around
         var toRemove = _activeChunks.Where(kv => kv.Value.GenerationID != Time.frameCount).ToArray();
         foreach (var keyValuePair in toRemove)
+        {
             _activeChunks.Remove(keyValuePair.Key);
+            DestroyChunk(keyValuePair.Value);
+        }
     }
 
-    private Chunk GenerateChunk(Vector2Int cellCoord)
+    private Chunk GenerateChunk(Vector2 absCoord)
     {
+        var rects = ZoneGenerator.Generate(ChunkSize, absCoord);
+        if (ZoneGeneratorLayer2 != null && Random.value < 0.25)
+            rects.AddRange(ZoneGeneratorLayer2.Generate(ChunkSize, absCoord));
+
+        var chunkParent = new GameObject($"{absCoord}");
+        chunkParent.transform.position = absCoord;
+        chunkParent.transform.SetParent(transform);
+
+        // todo: rename land to building
+        var lands = LandGenerator.Generate(rects);
+        foreach (var land in lands)
+        {
+            land.transform.SetParent(chunkParent.transform);
+        }
+
         var chunk = new Chunk
         {
-            Rects = ZoneGenerator.Generate(ChunkSize.x, ChunkSize.y, new Vector3(cellCoord.x, cellCoord.y, 0))
+            Rects = rects,
+            //Decorations = DecorationGenerator.Generate(ChunkSize.x, ChunkSize.y, new Vector3(cellCoord.x, cellCoord.y, 0)),
+            Lands = lands,
+            ChunkParent = chunkParent
         };
         return chunk;
+    }
+
+    private void DestroyChunk(Chunk chunk)
+    {
+        Destroy(chunk.ChunkParent);
     }
 
     private void OnDrawGizmos()

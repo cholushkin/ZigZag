@@ -14,12 +14,9 @@ public class ZoneGenerator : MonoBehaviour
     private BspTree _tree;
 
 
-    public List<Rect> Generate(int width, int height, Vector3 pos)
+    public List<Rect> Generate(Vector2 chunkSize, Vector2 pos)
     {
-        Bounds = new Rect(
-            new Vector2(pos.x, pos.y),
-            new Vector2(width, height));
-
+        Bounds = new Rect(pos, chunkSize);
         var rootNode = new BspTree.Node { Rect = Bounds };
 
         var treeGeneratorParams = new BspTreeHelper.BspTreeGeneratorParams { MinNodeHeight = MinRectHeight, MinNodeWidth = MinRectWidth };
