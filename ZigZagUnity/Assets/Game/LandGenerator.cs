@@ -20,12 +20,6 @@ public class LandGenerator : MonoBehaviour
             var obj = Instantiate(PrefabLandCube, rect.center, Quaternion.identity);
             obj.transform.localScale = rect.size.ToVector3(Random.value * (Random.value < SpawnTallBuildingProb ? TallBuildingHeight : ShortBuildingHeight)) * 0.6f;
 
-            // randomization
-            if (Random.value < 0.1f)
-            {
-                //obj.transform.Translate(Vector3.down*5);
-            }
-
             lands.Add(obj);
         }
 

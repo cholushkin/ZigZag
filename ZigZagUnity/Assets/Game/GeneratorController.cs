@@ -21,6 +21,8 @@ public class GeneratorController : MonoBehaviour
     }
 
     public Vector2 ChunkSize;
+    [Range(0f,1f)]
+    public float OffsetChunkChance;
     public BaseStreamingPointer StreamingPointer; // pointer which tells where to generate current zone
     public ZoneGenerator ZoneGenerator;
     public ZoneGenerator ZoneGeneratorLayer2;
@@ -90,7 +92,7 @@ public class GeneratorController : MonoBehaviour
         if (ZoneGeneratorLayer2 != null && Random.value < 0.25)
             rects.AddRange(ZoneGeneratorLayer2.Generate(ChunkSize, absCoord));
 
-        var chunkParent = new GameObject($"{absCoord}");
+        var chunkParent = new GameObject($"Chunk{absCoord}");
         chunkParent.transform.position = absCoord;
         chunkParent.transform.SetParent(transform);
 
