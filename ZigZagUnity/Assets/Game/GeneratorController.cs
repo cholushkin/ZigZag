@@ -27,10 +27,11 @@ public class GeneratorController : MonoBehaviour
     public ZoneGenerator ZoneGenerator;
     public ZoneGenerator ZoneGeneratorLayer2;
     public DecorationGenerator DecorationGenerator;
-    public LandGenerator LandGenerator;
+    public BuildingGenerator BuildingGenerator;
 
     private Vector2Int _prevPos; // prev position of pointer to determine when streaming pointer changes
     private Dictionary<Vector2Int, Chunk> _activeChunks = new(32);
+    readonly Vector2Int[] _directions = { new(1, 0), new(0, -1), new(-1, 0), new(0, 1) };
 
     void Awake()
     {
@@ -48,7 +49,6 @@ public class GeneratorController : MonoBehaviour
         }
     }
 
-    readonly Vector2Int[] _directions = { new(1, 0), new(0, -1), new(-1, 0), new(0, 1) };
     private void GenerateAround(IStreamingPointer pointer, int radius)
     {
         var gridCoordinate = pointer.GetGridCoordinate();
@@ -86,6 +86,8 @@ public class GeneratorController : MonoBehaviour
         }
     }
 
+
+
     private Chunk GenerateChunk(Vector2 absCoord)
     {
         var rects = ZoneGenerator.Generate(ChunkSize, absCoord);
@@ -96,8 +98,16 @@ public class GeneratorController : MonoBehaviour
         chunkParent.transform.position = absCoord;
         chunkParent.transform.SetParent(transform);
 
+        // Randomly offset entire chunk
+        if (Random.value < OffsetChunkChance)
+        {
+            // get random offset
+            var offset = _directions[Random.Range(0, 4)];
+            chunkParent.transform.Translate(new Vector3(offset.x, offset.y, 0));
+        }
+
         // todo: rename land to building
-        var lands = LandGenerator.Generate(rects);
+        var lands = BuildingGenerator.Generate(rects);
         foreach (var land in lands)
         {
             land.transform.SetParent(chunkParent.transform);

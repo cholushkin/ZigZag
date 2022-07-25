@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using GameLib;
 using UnityEngine;
 
-public class LandGenerator : MonoBehaviour
+public class BuildingGenerator : MonoBehaviour
 {
     public GameObject PrefabLandCube;
     [Range(0f, 1f)]
