@@ -13,14 +13,18 @@ public class ZoneGenerator : MonoBehaviour
 
     private BspTree _tree;
 
-
-    public List<Rect> Generate(Vector2 chunkSize, Vector2 pos)
+    // Generate zones based on seed passed. Special cases:
+    // seed == -1 generate empty list
+    public List<Rect> Generate(Vector2 chunkSize, Vector2 pos, long seed)
     {
+        if (seed == -1)
+            return new List<Rect>();
+
         Bounds = new Rect(pos, chunkSize);
         var rootNode = new BspTree.Node { Rect = Bounds };
 
         var treeGeneratorParams = new BspTreeHelper.BspTreeGeneratorParams { MinNodeHeight = MinRectHeight, MinNodeWidth = MinRectWidth };
-        _tree = BspTreeHelper.GenerateBspTree(rootNode, treeGeneratorParams);
+        _tree = BspTreeHelper.GenerateBspTree(rootNode, treeGeneratorParams, seed);
         Zones = _tree.GetTopNodes();
         return Zones;
     }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using GameLib.Random;
 using UnityEngine;
 
 public class GeneratorController : MonoBehaviour
@@ -15,10 +16,15 @@ public class GeneratorController : MonoBehaviour
         public int GenerationID;
         public List<GameObject> Buildings;
         public List<Rect> Rects;
-
         public List<GameObject> Decorations;
         public GameObject ChunkParent;
     }
+
+    public class ChunkState
+    {
+        public bool IsDestroyed;
+    }
+
 
     [Range(0f, 1f)]
     [Tooltip("Chance to offset entire chunk to close neighbor passages")]
@@ -28,6 +34,7 @@ public class GeneratorController : MonoBehaviour
     [Tooltip("Chance to generate second layer of buildings inside same chunk")]
     public float ChanceGenerateSecondLayer;
 
+    public long CoreSeed;
     public Vector2 ChunkSize;
     public BaseStreamingPointer StreamingPointer; // pointer which tells where to generate current zone
     public ZoneGenerator ZoneGenerator;
@@ -35,12 +42,14 @@ public class GeneratorController : MonoBehaviour
     public DecorationGenerator DecorationGenerator;
     public BuildingGenerator BuildingGenerator;
 
+    private IPseudoRandomNumberGenerator _rnd;
     private Vector2Int _prevPos; // prev position of pointer to determine when streaming pointer changes
     private Dictionary<Vector2Int, Chunk> _activeChunks = new(32);
     readonly Vector2Int[] _directions = { new(1, 0), new(0, -1), new(-1, 0), new(0, 1) };
 
     void Awake()
     {
+        _rnd = RandomHelper.CreateRandomNumberGenerator(CoreSeed);
         GenerateAround(StreamingPointer, 4);
     }
 
@@ -62,7 +71,7 @@ public class GeneratorController : MonoBehaviour
         Debug.Log($"Generate for grid coordinate: {gridCoordinate}");
 
         if (!_activeChunks.ContainsKey(gridCoordinate))
-            _activeChunks.Add(gridCoordinate, GenerateChunk(gridCoordinate * pointer.GetGridCellSize()));
+            _activeChunks.Add(gridCoordinate, GenerateChunk(gridCoordinate * pointer.GetGridCellSize(), GetSeedForCoord(gridCoordinate)));
         _activeChunks[gridCoordinate].GenerationID = Time.frameCount;
 
         Vector2Int curPointer = Vector2Int.zero;
@@ -75,8 +84,11 @@ public class GeneratorController : MonoBehaviour
                 for (int step = 0; step < r * 2; ++step)
                 {
                     var pos = gridCoordinate + curPointer;
+
+                    var seed = GetSeedForCoord(pos);
+
                     if (!_activeChunks.ContainsKey(pos))
-                        _activeChunks.Add(pos, GenerateChunk(pos * pointer.GetGridCellSize()));
+                        _activeChunks.Add(pos, GenerateChunk(pos * pointer.GetGridCellSize(), seed));
                     _activeChunks[pos].GenerationID = Time.frameCount;
                     curPointer += dir;
                 }
@@ -92,29 +104,28 @@ public class GeneratorController : MonoBehaviour
         }
     }
 
-
-
-    private Chunk GenerateChunk(Vector2 absCoord)
+    private Chunk GenerateChunk(Vector2 absCoord, long seed)
     {
-        var rects = ZoneGenerator.Generate(ChunkSize, absCoord);
-        if (ZoneGeneratorLayer2 != null && Random.value < 0.25)
-            rects.AddRange(ZoneGeneratorLayer2.Generate(ChunkSize, absCoord));
+        var rects = ZoneGenerator.Generate(ChunkSize, absCoord, seed);
+        _rnd.SetState(new LinearConRng.State(seed));
+        if (ZoneGeneratorLayer2 != null && _rnd.ValueFloat() < ChanceGenerateSecondLayer)
+            rects.AddRange(ZoneGeneratorLayer2.Generate(ChunkSize, absCoord, seed));
 
         var chunkParent = new GameObject($"Chunk{absCoord}");
         chunkParent.transform.position = absCoord;
         chunkParent.transform.SetParent(transform);
 
-        var buildings = BuildingGenerator.Generate(rects);
+        var buildings = BuildingGenerator.Generate(rects, seed);
         foreach (var building in buildings)
         {
             building.transform.SetParent(chunkParent.transform);
         }
 
         // Randomly offset entire chunk
-        if (Random.value < ChanceOffsetChunk)
+        if (_rnd.ValueFloat() < ChanceOffsetChunk)
         {
             // get random offset
-            var offset = _directions[Random.Range(0, 4)];
+            var offset = _rnd.FromArray(_directions);
             chunkParent.transform.Translate(new Vector3(offset.x, offset.y, 0) * 2); // distance enough to close the passage
         }
 
@@ -148,5 +159,20 @@ public class GeneratorController : MonoBehaviour
                 DrawRect(rect, Color.white);
             }
         }
+    }
+
+    private static long GetSeedForCoord(Vector2Int gridCoord, long coreSeed = 0)
+    {
+        const int subrange = 100000;
+        if (gridCoord.x < 0)
+            gridCoord.x += subrange;
+        if (gridCoord.y < 0)
+            gridCoord.y += subrange;
+
+        if (gridCoord.x < 0 || gridCoord.y < 0)
+            return -1;
+
+        long result = (gridCoord.x % subrange) * subrange + (gridCoord.y % subrange);
+        return result;
     }
 }

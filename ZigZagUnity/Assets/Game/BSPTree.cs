@@ -34,7 +34,7 @@ namespace BSPTreeRect
 
         private static readonly BspTreeGeneratorParams DefaultGeneratorParams = new();
 
-        public static BspTree GenerateBspTree(BspTree.Node root, BspTreeGeneratorParams genParams = default, int seed = -1)
+        public static BspTree GenerateBspTree(BspTree.Node root, BspTreeGeneratorParams genParams = default, long seed = -1)
         {
             genParams = genParams ?? DefaultGeneratorParams;
 
