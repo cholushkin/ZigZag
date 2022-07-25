@@ -13,16 +13,22 @@ public class GeneratorController : MonoBehaviour
     public class Chunk
     {
         public int GenerationID;
-        public List<GameObject> Lands;
+        public List<GameObject> Buildings;
         public List<Rect> Rects;
 
         public List<GameObject> Decorations;
         public GameObject ChunkParent;
     }
 
+    [Range(0f, 1f)]
+    [Tooltip("Chance to offset entire chunk to close neighbor passages")]
+    public float ChanceOffsetChunk;
+
+    [Range(0f, 1f)]
+    [Tooltip("Chance to generate second layer of buildings inside same chunk")]
+    public float ChanceGenerateSecondLayer;
+
     public Vector2 ChunkSize;
-    [Range(0f,1f)]
-    public float OffsetChunkChance;
     public BaseStreamingPointer StreamingPointer; // pointer which tells where to generate current zone
     public ZoneGenerator ZoneGenerator;
     public ZoneGenerator ZoneGeneratorLayer2;
@@ -98,26 +104,25 @@ public class GeneratorController : MonoBehaviour
         chunkParent.transform.position = absCoord;
         chunkParent.transform.SetParent(transform);
 
+        var buildings = BuildingGenerator.Generate(rects);
+        foreach (var building in buildings)
+        {
+            building.transform.SetParent(chunkParent.transform);
+        }
+
         // Randomly offset entire chunk
-        if (Random.value < OffsetChunkChance)
+        if (Random.value < ChanceOffsetChunk)
         {
             // get random offset
             var offset = _directions[Random.Range(0, 4)];
-            chunkParent.transform.Translate(new Vector3(offset.x, offset.y, 0));
-        }
-
-        // todo: rename land to building
-        var lands = BuildingGenerator.Generate(rects);
-        foreach (var land in lands)
-        {
-            land.transform.SetParent(chunkParent.transform);
+            chunkParent.transform.Translate(new Vector3(offset.x, offset.y, 0) * 2); // distance enough to close the passage
         }
 
         var chunk = new Chunk
         {
             Rects = rects,
             //Decorations = DecorationGenerator.Generate(ChunkSize.x, ChunkSize.y, new Vector3(cellCoord.x, cellCoord.y, 0)),
-            Lands = lands,
+            Buildings = buildings,
             ChunkParent = chunkParent
         };
         return chunk;
