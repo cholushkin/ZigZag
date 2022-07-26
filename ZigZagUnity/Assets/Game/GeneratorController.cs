@@ -46,6 +46,10 @@ public class GeneratorController : MonoBehaviour
     private Vector2Int _prevPos; // prev position of pointer to determine when streaming pointer changes
     private Dictionary<Vector2Int, Chunk> _activeChunks = new(32);
     readonly Vector2Int[] _directions = { new(1, 0), new(0, -1), new(-1, 0), new(0, 1) };
+    
+    private readonly Range[] _pickupsDistributions = { new(1,3), new(1,7)};
+    private readonly Vector2Int _distributionPointer;
+
 
     void Awake()
     {
@@ -66,31 +70,19 @@ public class GeneratorController : MonoBehaviour
 
     private void GenerateAround(IStreamingPointer pointer, int radius)
     {
-        var gridCoordinate = pointer.GetGridCoordinate();
+        TryGenerateChunk(pointer, Vector2Int.zero);
 
-        Debug.Log($"Generate for grid coordinate: {gridCoordinate}");
-
-        if (!_activeChunks.ContainsKey(gridCoordinate))
-            _activeChunks.Add(gridCoordinate, GenerateChunk(gridCoordinate * pointer.GetGridCellSize(), GetSeedForCoord(gridCoordinate)));
-        _activeChunks[gridCoordinate].GenerationID = Time.frameCount;
-
-        Vector2Int curPointer = Vector2Int.zero;
+        Vector2Int offset = Vector2Int.zero;
         for (int r = 1; r <= radius; ++r)
         {
-            curPointer.Set(-r, r);
+            offset.Set(-r, r);
             for (int dirIndex = 0; dirIndex < 4; ++dirIndex)
             {
                 var dir = _directions[dirIndex];
                 for (int step = 0; step < r * 2; ++step)
                 {
-                    var pos = gridCoordinate + curPointer;
-
-                    var seed = GetSeedForCoord(pos);
-
-                    if (!_activeChunks.ContainsKey(pos))
-                        _activeChunks.Add(pos, GenerateChunk(pos * pointer.GetGridCellSize(), seed));
-                    _activeChunks[pos].GenerationID = Time.frameCount;
-                    curPointer += dir;
+                    TryGenerateChunk(pointer, offset);
+                    offset += dir;
                 }
             }
         }
@@ -104,9 +96,22 @@ public class GeneratorController : MonoBehaviour
         }
     }
 
-    private Chunk GenerateChunk(Vector2 absCoord, long seed)
+    private Chunk TryGenerateChunk(IStreamingPointer pointer, Vector2Int gridOffset)
     {
+        var gridCoordinate = pointer.GetGridCoordinate() + gridOffset;
+        if (_activeChunks.ContainsKey(gridCoordinate))
+        {
+            _activeChunks[gridCoordinate].GenerationID = Time.frameCount;
+            return null;
+        }
+
+        var absCoord = gridCoordinate * pointer.GetGridCellSize();
+        var seed = GetSeedForCoord(gridCoordinate); // seed for this grid coordinate
+
+        // Generate rects for main layer
         var rects = ZoneGenerator.Generate(ChunkSize, absCoord, seed);
+
+        // Generate rects for second layer
         _rnd.SetState(new LinearConRng.State(seed));
         if (ZoneGeneratorLayer2 != null && _rnd.ValueFloat() < ChanceGenerateSecondLayer)
             rects.AddRange(ZoneGeneratorLayer2.Generate(ChunkSize, absCoord, seed));
@@ -136,6 +141,9 @@ public class GeneratorController : MonoBehaviour
             Buildings = buildings,
             ChunkParent = chunkParent
         };
+
+        _activeChunks.Add(gridCoordinate, chunk);
+        _activeChunks[gridCoordinate].GenerationID = Time.frameCount;
         return chunk;
     }
 
