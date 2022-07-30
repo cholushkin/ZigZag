@@ -24,7 +24,10 @@ public class BuildingGenerator : MonoBehaviour
         foreach (var rect in rects)
         {
             var obj = Instantiate(PrefabLandCube, rect.center, Quaternion.identity);
-            obj.transform.localScale = rect.size.ToVector3(_rnd.ValueFloat() * (_rnd.ValueFloat() < SpawnTallBuildingProb ? TallBuildingHeight : ShortBuildingHeight)) * 0.6f;
+            var z = _rnd.ValueFloat() * (_rnd.ValueFloat() < SpawnTallBuildingProb ? TallBuildingHeight : ShortBuildingHeight);
+            if (z < 0.1f)
+                z = 0.1f;
+            obj.transform.localScale = rect.size.ToVector3(z) * 0.6f;
             lands.Add(obj);
         }
         

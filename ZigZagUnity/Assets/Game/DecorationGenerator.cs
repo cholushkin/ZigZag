@@ -25,5 +25,4 @@ public class DecorationGenerator : MonoBehaviour
         //go.transform.localScale = Vector3.one * Random.Range(0.5f, 1f);
         //go.transform.parent = parent;
     }
-
 }

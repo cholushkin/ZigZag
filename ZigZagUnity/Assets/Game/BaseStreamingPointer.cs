@@ -4,6 +4,7 @@ public class BaseStreamingPointer : MonoBehaviour, GeneratorController.IStreamin
 {
     public class EventHit
     {
+        public GameObject GameObject;
     }
     
     public Vector2 GridCellSize;
@@ -20,6 +21,11 @@ public class BaseStreamingPointer : MonoBehaviour, GeneratorController.IStreamin
 
     void OnCollisionEnter(Collision collision)
     {
-        GlobalEventAggregator.EventAggregator.Publish(new EventHit());
+        GlobalEventAggregator.EventAggregator.Publish(new EventHit{GameObject = collision.gameObject});
+    }
+
+    void OnTriggerEnter(Collider otherCollider)
+    {
+        GlobalEventAggregator.EventAggregator.Publish(new EventHit{ GameObject = otherCollider.gameObject});
     }
 }

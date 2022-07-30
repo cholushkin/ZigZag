@@ -17,7 +17,7 @@ public class GeneratorController : MonoBehaviour
         public List<GameObject> Buildings;
         public List<Rect> Rects;
         public List<GameObject> Decorations;
-        public GameObject ChunkParent;
+        public GameObject GameObject;
     }
 
     public class ChunkState
@@ -40,6 +40,7 @@ public class GeneratorController : MonoBehaviour
     public ZoneGenerator ZoneGenerator;
     public ZoneGenerator ZoneGeneratorLayer2;
     public DecorationGenerator DecorationGenerator;
+    public PickableGenerator PickableGenerator;
     public BuildingGenerator BuildingGenerator;
 
     private IPseudoRandomNumberGenerator _rnd;
@@ -47,14 +48,13 @@ public class GeneratorController : MonoBehaviour
     private Dictionary<Vector2Int, Chunk> _activeChunks = new(32);
     readonly Vector2Int[] _directions = { new(1, 0), new(0, -1), new(-1, 0), new(0, 1) };
     
-    private readonly Range[] _pickupsDistributions = { new(1,3), new(1,7)};
-    private readonly Vector2Int _distributionPointer;
-
 
     void Awake()
     {
         _rnd = RandomHelper.CreateRandomNumberGenerator(CoreSeed);
-        GenerateAround(StreamingPointer, 4);
+        CoreSeed = _rnd.GetState().AsNumber();
+        PickableGenerator?.Pregenerate();
+        GenerateAround(StreamingPointer, 5);
     }
 
     void Update()
@@ -64,7 +64,7 @@ public class GeneratorController : MonoBehaviour
         if (gridCoord != _prevPos)
         {
             _prevPos = gridCoord;
-            GenerateAround(StreamingPointer, 4);
+            GenerateAround(StreamingPointer, 5);
         }
     }
 
@@ -96,6 +96,13 @@ public class GeneratorController : MonoBehaviour
         }
     }
 
+    public Chunk GetActiveChunk(Vector2Int gridCoord)
+    {
+        Chunk chunk = null;
+        _activeChunks.TryGetValue(gridCoord, out chunk);
+        return chunk;
+    }
+
     private Chunk TryGenerateChunk(IStreamingPointer pointer, Vector2Int gridOffset)
     {
         var gridCoordinate = pointer.GetGridCoordinate() + gridOffset;
@@ -106,24 +113,29 @@ public class GeneratorController : MonoBehaviour
         }
 
         var absCoord = gridCoordinate * pointer.GetGridCellSize();
-        var seed = GetSeedForCoord(gridCoordinate); // seed for this grid coordinate
+        var seed = GetSeedForCoord(gridCoordinate, CoreSeed); // seed for this grid coordinate
 
         // Generate rects for main layer
         var rects = ZoneGenerator.Generate(ChunkSize, absCoord, seed);
 
         // Generate rects for second layer
         _rnd.SetState(new LinearConRng.State(seed));
-        if (ZoneGeneratorLayer2 != null && _rnd.ValueFloat() < ChanceGenerateSecondLayer)
+        if (ZoneGeneratorLayer2 != null && !PickableGenerator.DoNeedGeneratePickable(gridCoordinate) && _rnd.ValueFloat() < ChanceGenerateSecondLayer)
             rects.AddRange(ZoneGeneratorLayer2.Generate(ChunkSize, absCoord, seed));
 
-        var chunkParent = new GameObject($"Chunk{absCoord}");
-        chunkParent.transform.position = absCoord;
-        chunkParent.transform.SetParent(transform);
+        var gObj = new GameObject($"Chunk:{seed}:{gridCoordinate}");
+        gObj.transform.position = absCoord;
+        gObj.transform.SetParent(transform);
 
+        // Generate pickable
+        if(PickableGenerator.DoNeedGeneratePickable(gridCoordinate))
+            PickableGenerator.Generate(rects, gObj.transform, seed);
+
+        // Generate buildings
         var buildings = BuildingGenerator.Generate(rects, seed);
         foreach (var building in buildings)
         {
-            building.transform.SetParent(chunkParent.transform);
+            building.transform.SetParent(gObj.transform);
         }
 
         // Randomly offset entire chunk
@@ -131,7 +143,7 @@ public class GeneratorController : MonoBehaviour
         {
             // get random offset
             var offset = _rnd.FromArray(_directions);
-            chunkParent.transform.Translate(new Vector3(offset.x, offset.y, 0) * 2); // distance enough to close the passage
+            gObj.transform.Translate(new Vector3(offset.x, offset.y, 0) * 2); // distance enough to close the passage
         }
 
         var chunk = new Chunk
@@ -139,7 +151,7 @@ public class GeneratorController : MonoBehaviour
             Rects = rects,
             //Decorations = DecorationGenerator.Generate(ChunkSize.x, ChunkSize.y, new Vector3(cellCoord.x, cellCoord.y, 0)),
             Buildings = buildings,
-            ChunkParent = chunkParent
+            GameObject = gObj
         };
 
         _activeChunks.Add(gridCoordinate, chunk);
@@ -149,7 +161,7 @@ public class GeneratorController : MonoBehaviour
 
     private void DestroyChunk(Chunk chunk)
     {
-        Destroy(chunk.ChunkParent);
+        Destroy(chunk.GameObject);
     }
 
     private void OnDrawGizmos()
@@ -171,16 +183,8 @@ public class GeneratorController : MonoBehaviour
 
     private static long GetSeedForCoord(Vector2Int gridCoord, long coreSeed = 0)
     {
+        
         const int subrange = 100000;
-        if (gridCoord.x < 0)
-            gridCoord.x += subrange;
-        if (gridCoord.y < 0)
-            gridCoord.y += subrange;
-
-        if (gridCoord.x < 0 || gridCoord.y < 0)
-            return -1;
-
-        long result = (gridCoord.x % subrange) * subrange + (gridCoord.y % subrange);
-        return result;
+        return gridCoord.GetHashCode() + coreSeed % subrange;
     }
 }
