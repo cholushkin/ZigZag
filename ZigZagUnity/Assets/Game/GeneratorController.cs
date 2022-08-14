@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using GameLib;
 using GameLib.Random;
 using UnityEngine;
 
@@ -36,6 +37,7 @@ public class GeneratorController : MonoBehaviour
 
     public long CoreSeed;
     public Vector2 ChunkSize;
+    public GameObject PrefabPlatform;
     public BaseStreamingPointer StreamingPointer; // pointer which tells where to generate current zone
     public ZoneGenerator ZoneGenerator;
     public ZoneGenerator ZoneGeneratorLayer2;
@@ -47,7 +49,7 @@ public class GeneratorController : MonoBehaviour
     private Vector2Int _prevPos; // prev position of pointer to determine when streaming pointer changes
     private Dictionary<Vector2Int, Chunk> _activeChunks = new(32);
     readonly Vector2Int[] _directions = { new(1, 0), new(0, -1), new(-1, 0), new(0, 1) };
-    
+
 
     void Awake()
     {
@@ -120,22 +122,29 @@ public class GeneratorController : MonoBehaviour
 
         // Generate rects for second layer
         _rnd.SetState(new LinearConRng.State(seed));
-        if (ZoneGeneratorLayer2 != null && !PickableGenerator.DoNeedGeneratePickable(gridCoordinate) && _rnd.ValueFloat() < ChanceGenerateSecondLayer)
+        var doNeedGeneratePickable =
+            PickableGenerator != null && PickableGenerator.DoNeedGeneratePickable(gridCoordinate);
+
+
+        if (ZoneGeneratorLayer2 != null && !doNeedGeneratePickable && _rnd.ValueFloat() < ChanceGenerateSecondLayer)
             rects.AddRange(ZoneGeneratorLayer2.Generate(ChunkSize, absCoord, seed));
 
-        var gObj = new GameObject($"Chunk:{seed}:{gridCoordinate}");
-        gObj.transform.position = absCoord;
-        gObj.transform.SetParent(transform);
+        var platform = Instantiate(PrefabPlatform);
+        const float platformHeight = 20f;
+        platform.name = $"Chunk:{seed}:{gridCoordinate}";
+        platform.transform.localScale = ChunkSize.ToVector3(platformHeight);
+        platform.transform.position = absCoord.ToVector3(platformHeight*0.5f) + Vector3.right * ChunkSize.x * 0.5f + Vector3.up * ChunkSize.y * 0.5f;
+        platform.transform.SetParent(transform);
 
         // Generate pickable
-        if(PickableGenerator.DoNeedGeneratePickable(gridCoordinate))
-            PickableGenerator.Generate(rects, gObj.transform, seed);
+        if (doNeedGeneratePickable)
+            PickableGenerator.Generate(rects, platform.transform, seed);
 
         // Generate buildings
         var buildings = BuildingGenerator.Generate(rects, seed);
         foreach (var building in buildings)
         {
-            building.transform.SetParent(gObj.transform);
+            building.transform.SetParent(platform.transform);
         }
 
         // Randomly offset entire chunk
@@ -143,7 +152,7 @@ public class GeneratorController : MonoBehaviour
         {
             // get random offset
             var offset = _rnd.FromArray(_directions);
-            gObj.transform.Translate(new Vector3(offset.x, offset.y, 0) * 2); // distance enough to close the passage
+            platform.transform.Translate(new Vector3(offset.x, offset.y, 0) * 2); // distance enough to close the passage
         }
 
         var chunk = new Chunk
@@ -151,7 +160,7 @@ public class GeneratorController : MonoBehaviour
             Rects = rects,
             //Decorations = DecorationGenerator.Generate(ChunkSize.x, ChunkSize.y, new Vector3(cellCoord.x, cellCoord.y, 0)),
             Buildings = buildings,
-            GameObject = gObj
+            GameObject = platform
         };
 
         _activeChunks.Add(gridCoordinate, chunk);
@@ -183,7 +192,7 @@ public class GeneratorController : MonoBehaviour
 
     private static long GetSeedForCoord(Vector2Int gridCoord, long coreSeed = 0)
     {
-        
+
         const int subrange = 100000;
         return gridCoord.GetHashCode() + coreSeed % subrange;
     }

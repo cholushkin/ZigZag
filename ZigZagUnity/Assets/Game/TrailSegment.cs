@@ -7,6 +7,6 @@ public class TrailSegment : MonoBehaviour
 {
     void Start()
     {
-        transform.DOScale(Vector3.one * 8, 3).OnComplete(()=>gameObject.GetComponent<SphereCollider>().enabled = true);
+        transform.DOScale(transform.localScale * 1.5f, 0.5f).OnComplete(()=>gameObject.GetComponent<SphereCollider>().enabled = true);
     }
 }
